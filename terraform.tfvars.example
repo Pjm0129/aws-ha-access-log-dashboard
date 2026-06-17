@@ -1,0 +1,11 @@
+aws_region           = "us-east-1"
+name_prefix          = "ha-access-log"
+instance_type        = "t3.micro"
+http_cidr            = "0.0.0.0/0"
+enable_ssh           = false
+ssh_cidr             = "0.0.0.0/0"
+key_name             = null
+db_instance_class    = "db.t3.micro"
+db_allocated_storage = 20
+db_name              = "accesslogdb"
+db_master_username   = "appadmin"
