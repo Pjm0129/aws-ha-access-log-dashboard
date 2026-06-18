@@ -1,0 +1,67 @@
+HA Class Access Log Dashboard on AWS - Finished Checklist
+
+Repository:
+https://github.com/Pjm0129/aws-ha-access-log-dashboard
+
+Project Status:
+Completed
+
+Implemented Files:
+- README.md
+- versions.tf
+- variables.tf
+- terraform.tfvars.example
+- main.tf
+- outputs.tf
+- user-data.sh
+- command.md
+- report.md
+- finished.txt
+- .gitignore
+
+Terraform Resources Verified:
+- Application Load Balancer created
+- HTTP Listener created
+- Target Group created
+- Two EC2 web servers created
+- EC2 instances placed in two Availability Zones
+- Private RDS MySQL database created
+- ALB Security Group created
+- EC2 Security Group created
+- RDS Security Group created
+- RDS publicly_accessible set to false
+
+Application Verification:
+- Dashboard URL works
+- Health check returns ok
+- DB check returns db-ok
+- Dashboard returns HTTP 200 OK
+- Total request count increases after repeated access
+- Requests are served by both EC2 instances
+- Access logs are stored in RDS MySQL
+
+Benchmark Verification:
+- ApacheBench executed with 100 requests and 10 concurrency
+- Variable document length allowed with -l option
+- Complete requests: 100
+- Failed requests: 0
+- Requests per second: 23.36
+- 95% response time: 423 ms
+
+Security Verification:
+- Public users access only the ALB
+- EC2 accepts HTTP traffic only from the ALB Security Group
+- RDS accepts MySQL traffic only from the EC2 Security Group
+- RDS is not publicly accessible
+
+Important Notes:
+- terraform.tfstate was not committed
+- terraform.tfvars was not committed
+- .terraform directory was not committed
+- plan.out was not committed
+- Sensitive files were excluded by .gitignore
+
+Cleanup:
+After final submission, run the following command to delete AWS resources and avoid unnecessary cost:
+
+terraform destroy
