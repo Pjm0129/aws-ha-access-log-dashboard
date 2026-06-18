@@ -16,6 +16,11 @@ data "aws_subnet" "default_vpc" {
   id = each.value
 }
 
+# Latest Amazon Linux 2023 AMI
+data "aws_ssm_parameter" "al2023_ami" {
+  name = "/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64"
+}
+
 # Select two subnets from different Availability Zones
 locals {
   common_tags = {
@@ -32,6 +37,8 @@ locals {
   selected_subnet_ids = [
     for az in local.selected_azs : sort(local.subnets_by_az[az])[0]
   ]
+
+  instance_subnet_map = zipmap(["web-a", "web-b"], local.selected_subnet_ids)
 }
 
 # Security group for the public Application Load Balancer
@@ -156,4 +163,87 @@ resource "aws_db_instance" "access_log" {
   tags = merge(local.common_tags, {
     Name = "${var.name_prefix}-mysql"
   })
+}
+
+# EC2 web servers
+resource "aws_instance" "web" {
+  for_each = local.instance_subnet_map
+
+  ami                         = data.aws_ssm_parameter.al2023_ami.value
+  instance_type               = var.instance_type
+  subnet_id                   = each.value
+  vpc_security_group_ids      = [aws_security_group.ec2.id]
+  associate_public_ip_address = true
+  key_name                    = var.key_name
+  user_data_replace_on_change = true
+
+  user_data = templatefile("${path.module}/user-data.sh", {
+    db_host     = aws_db_instance.access_log.address
+    db_port     = aws_db_instance.access_log.port
+    db_name     = var.db_name
+    db_username = var.db_master_username
+    db_password = var.db_master_password
+  })
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-${each.key}"
+  })
+}
+
+# Target group for EC2 web servers
+resource "aws_lb_target_group" "web" {
+  name        = "${var.name_prefix}-tg"
+  port        = 80
+  protocol    = "HTTP"
+  vpc_id      = data.aws_vpc.default.id
+  target_type = "instance"
+
+  health_check {
+    enabled             = true
+    path                = "/health.html"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 15
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-tg"
+  })
+}
+
+# Attach EC2 instances to the target group
+resource "aws_lb_target_group_attachment" "web" {
+  for_each = aws_instance.web
+
+  target_group_arn = aws_lb_target_group.web.arn
+  target_id        = each.value.id
+  port             = 80
+}
+
+# Public Application Load Balancer
+resource "aws_lb" "web" {
+  name               = "${var.name_prefix}-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb.id]
+  subnets            = local.selected_subnet_ids
+
+  tags = merge(local.common_tags, {
+    Name = "${var.name_prefix}-alb"
+  })
+}
+
+# HTTP listener for ALB
+resource "aws_lb_listener" "http" {
+  load_balancer_arn = aws_lb.web.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.web.arn
+  }
 }
